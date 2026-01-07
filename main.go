@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -10,6 +11,7 @@ var (
 	// Basic commands
 	flagServers       = flag.Bool("servers", false, "List configured servers")
 	flagTools         = flag.String("tools", "", "List tools on a server")
+	flagCall          = flag.Bool("call", false, "Call a tool: --call <server> <tool> '<json>'")
 	flagInit          = flag.Bool("init", false, "Initialize config file")
 	flagClearSessions = flag.Bool("clear-sessions", false, "Clear cached sessions")
 	flagClearTokens   = flag.Bool("clear-tokens", false, "Clear stored OAuth tokens")
@@ -20,6 +22,7 @@ var (
 	flagDaemonStop   = flag.Bool("daemon-stop", false, "Stop the daemon")
 	flagDaemonStatus = flag.Bool("daemon-status", false, "Check daemon status")
 	flagDaemonTools  = flag.String("daemon-tools", "", "List tools via daemon")
+	flagQuery        = flag.Bool("query", false, "Fast query via daemon: --query <server> <tool> '<json>'")
 )
 
 func main() {
@@ -94,20 +97,22 @@ Flags:
 	case *flagDaemonTools != "":
 		daemonTools(*flagDaemonTools)
 
-	default:
-		// Check for --call or --query (positional args after flags)
+	case *flagCall:
 		args := flag.Args()
-		if len(args) >= 3 {
-			// Try to determine if this is a call or query based on context
-			// For now, default to direct call
-			callTool(args[0], args[1], args[2])
-		} else if len(args) > 0 {
-			fmt.Fprintf(os.Stderr, "Unknown command or insufficient arguments\n")
-			flag.Usage()
-			os.Exit(1)
-		} else {
-			flag.Usage()
+		if len(args) < 3 {
+			errExit(ErrInvalidArgs, "Usage: --call <server> <tool> '<json>'")
 		}
+		callTool(args[0], args[1], args[2])
+
+	case *flagQuery:
+		args := flag.Args()
+		if len(args) < 3 {
+			errExit(ErrInvalidArgs, "Usage: --query <server> <tool> '<json>'")
+		}
+		daemonQuery(args[0], args[1], args[2])
+
+	default:
+		flag.Usage()
 	}
 }
 
@@ -133,11 +138,69 @@ func listServers() {
 // Placeholder implementations - will be filled in subsequent phases
 
 func listTools(serverName string) {
-	errExit(ErrMCPError, "Not implemented yet - Phase 2")
+	config, err := LoadConfig()
+	if err != nil {
+		errExit(ErrMCPError, fmt.Sprintf("Failed to load config: %v", err))
+	}
+
+	serverConfig, exists := config.Servers[serverName]
+	if !exists {
+		errExit(ErrNotFound, fmt.Sprintf("Server '%s' not configured. Run --servers to list.", serverName))
+	}
+
+	client := NewMCPClient(serverName, serverConfig)
+
+	// Get OAuth token if available
+	token, _ := GetTokenForServer(serverName, serverConfig)
+	if token != "" {
+		client.SetOAuthToken(token)
+	}
+
+	tools, err := client.ListTools()
+	if err != nil {
+		errExit(ErrMCPError, err.Error())
+	}
+
+	ok(map[string]any{
+		"server": serverName,
+		"tools":  tools,
+	})
 }
 
 func callTool(serverName, toolName, argsJSON string) {
-	errExit(ErrMCPError, "Not implemented yet - Phase 2")
+	config, err := LoadConfig()
+	if err != nil {
+		errExit(ErrMCPError, fmt.Sprintf("Failed to load config: %v", err))
+	}
+
+	serverConfig, exists := config.Servers[serverName]
+	if !exists {
+		errExit(ErrNotFound, fmt.Sprintf("Server '%s' not configured. Run --servers to list.", serverName))
+	}
+
+	var arguments map[string]any
+	if err := json.Unmarshal([]byte(argsJSON), &arguments); err != nil {
+		errExit(ErrInvalidJSON, fmt.Sprintf("Invalid JSON arguments: %v", err))
+	}
+
+	client := NewMCPClient(serverName, serverConfig)
+
+	// Get OAuth token if available
+	token, _ := GetTokenForServer(serverName, serverConfig)
+	if token != "" {
+		client.SetOAuthToken(token)
+	}
+
+	result, err := client.CallTool(toolName, arguments)
+	if err != nil {
+		errExit(ErrMCPError, err.Error())
+	}
+
+	ok(map[string]any{
+		"server": serverName,
+		"tool":   toolName,
+		"result": result,
+	})
 }
 
 func doAuth(serverName string) {
@@ -157,5 +220,9 @@ func daemonStatus() {
 }
 
 func daemonTools(serverName string) {
+	errExit(ErrMCPError, "Not implemented yet - Phase 6")
+}
+
+func daemonQuery(serverName, toolName, argsJSON string) {
 	errExit(ErrMCPError, "Not implemented yet - Phase 6")
 }
