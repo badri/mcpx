@@ -145,57 +145,54 @@ Source: [GitHub Issue #12836](https://github.com/anthropics/claude-code/issues/1
 - Session management is stateful
 - Tool caching reduces MCP round-trips
 
-### Why Go? (planned)
+### Why Go?
 
-Current implementation is Python. Moving to Go for:
-- Single binary distribution (no pip dependencies)
-- Native concurrency for parallel agent queries
-- Faster startup
-- Better daemon lifecycle management
-
-Python version will remain functional during transition.
+Written in Go for:
+- Single binary distribution (no dependencies)
+- Native concurrency via goroutines for parallel agent queries
+- Fast startup
+- Robust daemon lifecycle management
 
 ## Roadmap
 
-### Phase 1: Foundation (current)
+### Done
 - [x] Basic CLI (--tools, --call, --servers)
 - [x] OAuth with PKCE and dynamic registration
 - [x] Daemon mode with connection pooling
-- [x] Tool schema caching
+- [x] Tool schema caching (5-min TTL)
+- [x] Structured error codes
+- [x] Go rewrite with single binary
+- [x] Goroutines for parallel queries
+- [x] Request logging in daemon mode
 
-### Phase 2: Robustness
-- [ ] Structured error codes
+### Planned
 - [ ] Retry with backoff
-- [ ] Error-triggered cache refresh
-- [ ] SQLite persistent cache
-
-### Phase 3: Go Rewrite
-- [ ] Port core functionality to Go
-- [ ] Single binary distribution
-- [ ] Threading for parallel queries
-- [ ] Improved daemon lifecycle
-
-### Phase 4: Advanced
 - [ ] `--search` mode (Rube-style tool discovery)
-- [ ] Schema caching
+- [ ] SQLite persistent cache
 - [ ] Query pattern learning
 
 ## Installation
 
-### Current (Python)
+### From source (Go)
 
 ```bash
-pip install httpx
+git clone https://github.com/badri/mcpx.git
+cd mcpx
+CGO_ENABLED=0 go build -o mcpx .
 cp mcpx /usr/local/bin/
-chmod +x /usr/local/bin/mcpx
 ```
 
-### Future (Go)
+### From Go
 
 ```bash
-go install github.com/user/mcpx@latest
-# or
-brew install mcpx
+go install github.com/badri/mcpx@latest
+```
+
+### Initialize config
+
+```bash
+mcpx --init
+# Edit ~/.mcpx/servers.json with your servers
 ```
 
 ## License
