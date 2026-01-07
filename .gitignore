@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Go
+mcpx-go
+*.exe
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+
+# Local config (tokens contain secrets)
+# Note: servers.json is in ~/.mcpx/, not repo
+
+# Beads database (JSONL is tracked, DB is local)
+.beads/*.db
+.beads/*.db-shm
+.beads/*.db-wal
