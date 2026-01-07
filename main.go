@@ -18,11 +18,12 @@ var (
 	flagAuth          = flag.String("auth", "", "OAuth login for a server")
 
 	// Daemon mode
-	flagDaemon       = flag.Bool("daemon", false, "Start daemon in background")
-	flagDaemonStop   = flag.Bool("daemon-stop", false, "Stop the daemon")
-	flagDaemonStatus = flag.Bool("daemon-status", false, "Check daemon status")
-	flagDaemonTools  = flag.String("daemon-tools", "", "List tools via daemon")
-	flagQuery        = flag.Bool("query", false, "Fast query via daemon: --query <server> <tool> '<json>'")
+	flagDaemon           = flag.Bool("daemon", false, "Start daemon in background")
+	flagDaemonForeground = flag.Bool("daemon-foreground", false, "Run daemon in foreground (internal)")
+	flagDaemonStop       = flag.Bool("daemon-stop", false, "Stop the daemon")
+	flagDaemonStatus     = flag.Bool("daemon-status", false, "Check daemon status")
+	flagDaemonTools      = flag.String("daemon-tools", "", "List tools via daemon")
+	flagQuery            = flag.Bool("query", false, "Fast query via daemon: --query <server> <tool> '<json>'")
 )
 
 func main() {
@@ -87,6 +88,9 @@ Flags:
 
 	case *flagDaemon:
 		startDaemon()
+
+	case *flagDaemonForeground:
+		runDaemonForeground()
 
 	case *flagDaemonStop:
 		stopDaemon()
@@ -220,15 +224,29 @@ func doAuth(serverName string) {
 }
 
 func startDaemon() {
-	errExit(ErrMCPError, "Not implemented yet - Phase 5")
+	if err := StartDaemonBackground(); err != nil {
+		errExit(ErrDaemonError, err.Error())
+	}
+}
+
+func runDaemonForeground() {
+	daemon, err := NewMCPDaemon()
+	if err != nil {
+		errExit(ErrMCPError, err.Error())
+	}
+	if err := daemon.Run(); err != nil {
+		errExit(ErrMCPError, err.Error())
+	}
 }
 
 func stopDaemon() {
-	errExit(ErrMCPError, "Not implemented yet - Phase 5")
+	if err := StopDaemon(); err != nil {
+		errExit(ErrDaemonError, err.Error())
+	}
 }
 
 func daemonStatus() {
-	errExit(ErrMCPError, "Not implemented yet - Phase 5")
+	GetDaemonStatus()
 }
 
 func daemonTools(serverName string) {
