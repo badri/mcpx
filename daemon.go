@@ -205,6 +205,7 @@ func (d *MCPDaemon) handleCommand(cmd DaemonCommand) Response {
 func (d *MCPDaemon) handleConnection(conn net.Conn) {
 	defer conn.Close()
 
+	start := time.Now()
 	reader := bufio.NewReader(conn)
 
 	// Read command (single JSON object)
@@ -213,11 +214,29 @@ func (d *MCPDaemon) handleConnection(conn net.Conn) {
 	if err := decoder.Decode(&cmd); err != nil {
 		response := errResponse(ErrParseError, err.Error())
 		json.NewEncoder(conn).Encode(response)
+		fmt.Fprintf(os.Stderr, "[%s] ERROR parse: %v\n", time.Now().Format("15:04:05"), err)
 		return
 	}
 
 	// Handle command
 	response := d.handleCommand(cmd)
+
+	// Log request
+	elapsed := time.Since(start)
+	status := "OK"
+	if !response.OK {
+		status = "ERR"
+	}
+	if cmd.Action == "call" {
+		fmt.Fprintf(os.Stderr, "[%s] %s %s/%s %s (%v)\n",
+			time.Now().Format("15:04:05"), status, cmd.Server, cmd.Tool, cmd.Action, elapsed)
+	} else if cmd.Server != "" {
+		fmt.Fprintf(os.Stderr, "[%s] %s %s %s (%v)\n",
+			time.Now().Format("15:04:05"), status, cmd.Server, cmd.Action, elapsed)
+	} else if cmd.Action != "ping" {
+		fmt.Fprintf(os.Stderr, "[%s] %s %s (%v)\n",
+			time.Now().Format("15:04:05"), status, cmd.Action, elapsed)
+	}
 
 	// Send response
 	json.NewEncoder(conn).Encode(response)
