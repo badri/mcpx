@@ -204,7 +204,19 @@ func callTool(serverName, toolName, argsJSON string) {
 }
 
 func doAuth(serverName string) {
-	errExit(ErrMCPError, "Not implemented yet - Phase 4")
+	config, err := LoadConfig()
+	if err != nil {
+		errExit(ErrMCPError, fmt.Sprintf("Failed to load config: %v", err))
+	}
+
+	serverConfig, exists := config.Servers[serverName]
+	if !exists {
+		errExit(ErrNotFound, fmt.Sprintf("Server '%s' not configured", serverName))
+	}
+
+	if err := DoOAuthFlow(serverName, serverConfig); err != nil {
+		errExit(ErrAuthExpired, err.Error())
+	}
 }
 
 func startDaemon() {
