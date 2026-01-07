@@ -166,10 +166,11 @@ Written in Go for:
 - [x] Request logging in daemon mode
 
 ### Planned
+- [ ] `--add` / `--remove` commands for server management
+- [ ] Local MCP server process management (start/stop with daemon)
+- [ ] Onboarding skill for Claude Code / Codex / Cursor
 - [ ] Retry with backoff
 - [ ] `--search` mode (Rube-style tool discovery)
-- [ ] SQLite persistent cache
-- [ ] Query pattern learning
 
 ## Installation
 
