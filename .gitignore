@@ -8,6 +8,7 @@ build/
 
 # Go
 mcpx-go
+/mcpx
 *.exe
 
 # IDE
