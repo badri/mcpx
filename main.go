@@ -250,9 +250,40 @@ func daemonStatus() {
 }
 
 func daemonTools(serverName string) {
-	errExit(ErrMCPError, "Not implemented yet - Phase 6")
+	resp, err := DaemonSend(DaemonCommand{
+		Action: "tools",
+		Server: serverName,
+	})
+	if err != nil {
+		errExit(ErrDaemonError, err.Error())
+	}
+
+	out, _ := json.MarshalIndent(resp, "", "  ")
+	fmt.Println(string(out))
+	if !resp.OK {
+		os.Exit(1)
+	}
 }
 
 func daemonQuery(serverName, toolName, argsJSON string) {
-	errExit(ErrMCPError, "Not implemented yet - Phase 6")
+	var arguments map[string]any
+	if err := json.Unmarshal([]byte(argsJSON), &arguments); err != nil {
+		errExit(ErrInvalidJSON, fmt.Sprintf("Invalid JSON arguments: %v", err))
+	}
+
+	resp, err := DaemonSend(DaemonCommand{
+		Action:    "call",
+		Server:    serverName,
+		Tool:      toolName,
+		Arguments: arguments,
+	})
+	if err != nil {
+		errExit(ErrDaemonError, err.Error())
+	}
+
+	out, _ := json.MarshalIndent(resp, "", "  ")
+	fmt.Println(string(out))
+	if !resp.OK {
+		os.Exit(1)
+	}
 }
