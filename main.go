@@ -1,0 +1,161 @@
+package main
+
+import (
+	"flag"
+	"fmt"
+	"os"
+)
+
+var (
+	// Basic commands
+	flagServers       = flag.Bool("servers", false, "List configured servers")
+	flagTools         = flag.String("tools", "", "List tools on a server")
+	flagInit          = flag.Bool("init", false, "Initialize config file")
+	flagClearSessions = flag.Bool("clear-sessions", false, "Clear cached sessions")
+	flagClearTokens   = flag.Bool("clear-tokens", false, "Clear stored OAuth tokens")
+	flagAuth          = flag.String("auth", "", "OAuth login for a server")
+
+	// Daemon mode
+	flagDaemon       = flag.Bool("daemon", false, "Start daemon in background")
+	flagDaemonStop   = flag.Bool("daemon-stop", false, "Stop the daemon")
+	flagDaemonStatus = flag.Bool("daemon-status", false, "Check daemon status")
+	flagDaemonTools  = flag.String("daemon-tools", "", "List tools via daemon")
+)
+
+func main() {
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, `mcpx - MCP protocol bridge for AI agents
+
+Usage:
+  mcpx --servers                          # List configured servers
+  mcpx --tools <server>                   # List tools on a server
+  mcpx --call <server> <tool> '<json>'    # Call a tool
+  mcpx --auth <server>                    # OAuth login for a server
+  mcpx --init                             # Create config file
+
+Daemon mode (fast queries):
+  mcpx --daemon                           # Start daemon in background
+  mcpx --query <server> <tool> '<json>'   # Fast query via daemon
+  mcpx --daemon-tools <server>            # List tools via daemon
+  mcpx --daemon-stop                      # Stop daemon
+
+Config: ~/.mcpx/servers.json
+
+Flags:
+`)
+		flag.PrintDefaults()
+	}
+
+	flag.Parse()
+
+	// Handle commands
+	switch {
+	case *flagInit:
+		if err := InitConfig(); err != nil {
+			errExit(ErrMCPError, fmt.Sprintf("Failed to init config: %v", err))
+		}
+		fmt.Printf("Config directory: %s\n", ConfigDir)
+		if _, err := os.Stat(ConfigFile); err == nil {
+			fmt.Printf("Config file exists: %s\n", ConfigFile)
+		} else {
+			fmt.Printf("Created config file: %s\n", ConfigFile)
+		}
+
+	case *flagClearSessions:
+		if err := ClearSessions(); err != nil {
+			errExit(ErrMCPError, fmt.Sprintf("Failed to clear sessions: %v", err))
+		}
+		fmt.Println("Sessions cleared.")
+
+	case *flagClearTokens:
+		if err := ClearTokens(); err != nil {
+			errExit(ErrMCPError, fmt.Sprintf("Failed to clear tokens: %v", err))
+		}
+		fmt.Println("OAuth tokens cleared.")
+
+	case *flagServers:
+		listServers()
+
+	case *flagTools != "":
+		listTools(*flagTools)
+
+	case *flagAuth != "":
+		doAuth(*flagAuth)
+
+	case *flagDaemon:
+		startDaemon()
+
+	case *flagDaemonStop:
+		stopDaemon()
+
+	case *flagDaemonStatus:
+		daemonStatus()
+
+	case *flagDaemonTools != "":
+		daemonTools(*flagDaemonTools)
+
+	default:
+		// Check for --call or --query (positional args after flags)
+		args := flag.Args()
+		if len(args) >= 3 {
+			// Try to determine if this is a call or query based on context
+			// For now, default to direct call
+			callTool(args[0], args[1], args[2])
+		} else if len(args) > 0 {
+			fmt.Fprintf(os.Stderr, "Unknown command or insufficient arguments\n")
+			flag.Usage()
+			os.Exit(1)
+		} else {
+			flag.Usage()
+		}
+	}
+}
+
+// listServers lists all configured servers
+func listServers() {
+	config, err := LoadConfig()
+	if err != nil {
+		errExit(ErrMCPError, fmt.Sprintf("Failed to load config: %v", err))
+	}
+
+	servers := make([]ServerInfo, 0, len(config.Servers))
+	for name, cfg := range config.Servers {
+		servers = append(servers, ServerInfo{
+			Name:    name,
+			URL:     cfg.URL,
+			HasAuth: len(cfg.Headers) > 0,
+		})
+	}
+
+	ok(map[string]any{"servers": servers})
+}
+
+// Placeholder implementations - will be filled in subsequent phases
+
+func listTools(serverName string) {
+	errExit(ErrMCPError, "Not implemented yet - Phase 2")
+}
+
+func callTool(serverName, toolName, argsJSON string) {
+	errExit(ErrMCPError, "Not implemented yet - Phase 2")
+}
+
+func doAuth(serverName string) {
+	errExit(ErrMCPError, "Not implemented yet - Phase 4")
+}
+
+func startDaemon() {
+	errExit(ErrMCPError, "Not implemented yet - Phase 5")
+}
+
+func stopDaemon() {
+	errExit(ErrMCPError, "Not implemented yet - Phase 5")
+}
+
+func daemonStatus() {
+	errExit(ErrMCPError, "Not implemented yet - Phase 5")
+}
+
+func daemonTools(serverName string) {
+	errExit(ErrMCPError, "Not implemented yet - Phase 6")
+}
