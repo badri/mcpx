@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 )
 
 var (
@@ -16,6 +17,10 @@ var (
 	flagClearSessions = flag.Bool("clear-sessions", false, "Clear cached sessions")
 	flagClearTokens   = flag.Bool("clear-tokens", false, "Clear stored OAuth tokens")
 	flagAuth          = flag.String("auth", "", "OAuth login for a server")
+
+	// Skills
+	flagInitSkill      = flag.Bool("init-skill", false, "Install mcpx skill to ~/.claude/skills/")
+	flagInitSkillForce = flag.Bool("force", false, "Force overwrite when installing skill")
 
 	// Daemon mode
 	flagDaemon           = flag.Bool("daemon", false, "Start daemon in background")
@@ -42,6 +47,10 @@ Daemon mode (fast queries):
   mcpx --query <server> <tool> '<json>'   # Fast query via daemon
   mcpx --daemon-tools <server>            # List tools via daemon
   mcpx --daemon-stop                      # Stop daemon
+
+Claude Code skill:
+  mcpx --init-skill                       # Install mcpx skill to ~/.claude/skills/
+  mcpx --init-skill --force               # Overwrite existing skill
 
 Config: ~/.mcpx/servers.json
 
@@ -76,6 +85,20 @@ Flags:
 			errExit(ErrMCPError, fmt.Sprintf("Failed to clear tokens: %v", err))
 		}
 		fmt.Println("OAuth tokens cleared.")
+
+	case *flagInitSkill:
+		var err error
+		if *flagInitSkillForce {
+			err = InitSkillForce()
+		} else {
+			err = InitSkill()
+		}
+		if err != nil {
+			errExit(ErrMCPError, err.Error())
+		}
+		skillPath := filepath.Join(ClaudeSkillsDir, "mcpx.md")
+		fmt.Printf("Installed mcpx skill to: %s\n", skillPath)
+		fmt.Println("The skill will auto-invoke when you mention databases, logs, MCP servers, etc.")
 
 	case *flagServers:
 		listServers()
