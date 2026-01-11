@@ -25,10 +25,11 @@ const (
 
 // ServerConfig represents a configured MCP server
 type ServerConfig struct {
-	URL     string            `json:"url"`
-	Headers map[string]string `json:"headers,omitempty"`
-	OAuth   *OAuthConfig      `json:"oauth,omitempty"`
-	Scope   string            `json:"scope,omitempty"`
+	URL          string            `json:"url"`
+	Headers      map[string]string `json:"headers,omitempty"`
+	OAuth        *OAuthConfig      `json:"oauth,omitempty"`
+	Scope        string            `json:"scope,omitempty"`
+	SessionBased bool              `json:"session_based,omitempty"` // For Streamable HTTP servers where session is tied to TCP connection
 }
 
 // OAuthConfig holds OAuth configuration for a server
@@ -263,6 +264,10 @@ func InitConfig() error {
 				Headers: map[string]string{
 					"Authorization": "Bearer YOUR_TOKEN",
 				},
+			},
+			"playwright-example": {
+				URL:          "http://localhost:3000/mcp",
+				SessionBased: true, // For Streamable HTTP servers (e.g., Playwright MCP) where session is tied to TCP connection
 			},
 		},
 	}

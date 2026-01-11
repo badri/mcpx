@@ -6,12 +6,17 @@ MCP protocol bridge for AI agents. Eliminates context bloat by letting agents ca
 
 ## Current State
 
-- **Python implementation**: Working (`mcpx` script)
-- **Next step**: Rewrite in Go for single-binary distribution and native concurrency
+- **Go implementation**: Main implementation (single binary)
+- **Python implementation**: POC only (`mcpx.py`), do not modify
 
 ## Key Files
 
-- `mcpx` - Main CLI (Python, will become `mcpx.py` when Go version arrives)
+- `main.go` - CLI entry point and argument handling
+- `mcp.go` - MCP client and JSON-RPC protocol
+- `daemon.go` - Daemon mode with connection pooling
+- `config.go` - Configuration types and persistence
+- `oauth.go` - OAuth flow and token management
+- `errors.go` - Structured error responses
 - `~/.mcpx/servers.json` - Server configuration
 - `~/.mcpx/tokens.json` - OAuth tokens (auto-managed)
 
@@ -29,7 +34,7 @@ Agent never loads MCP tool schemas. mcpx translates CLI calls to JSON-RPC.
 
 1. Keep it simple - this is a dumb pipe, not a framework
 2. Zero overhead for agents - fast CLI, clean JSON output
-3. Single binary goal - Go rewrite enables this
+3. Single binary distribution - Go enables this
 
 ### When Making Changes
 
