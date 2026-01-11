@@ -164,11 +164,11 @@ Written in Go for:
 - [x] Go rewrite with single binary
 - [x] Goroutines for parallel queries
 - [x] Request logging in daemon mode
+- [x] Claude Code skill (`--init-skill`)
 
 ### Planned
 - [ ] `--add` / `--remove` commands for server management
 - [ ] Local MCP server process management (start/stop with daemon)
-- [ ] Onboarding skill for Claude Code / Codex / Cursor
 - [ ] Retry with backoff
 - [ ] `--search` mode (Rube-style tool discovery)
 
@@ -194,6 +194,85 @@ go install github.com/badri/mcpx@latest
 ```bash
 mcpx --init
 # Edit ~/.mcpx/servers.json with your servers
+```
+
+## Claude Code Integration
+
+mcpx includes a skill that teaches Claude Code how to use MCP servers. Once installed, Claude will automatically invoke mcpx when you ask about databases, logs, or any configured server.
+
+### Quick Setup (5 minutes)
+
+```bash
+# 1. Install the Claude Code skill
+mcpx --init-skill
+
+# 2. Add your servers to ~/.mcpx/servers.json
+cat > ~/.mcpx/servers.json << 'EOF'
+{
+  "servers": {
+    "supabase": {
+      "url": "https://mcp.supabase.com/mcp?project_ref=YOUR_PROJECT&read_only=true"
+    }
+  }
+}
+EOF
+
+# 3. Authenticate (for OAuth servers)
+mcpx --auth supabase
+
+# 4. Start the daemon (keeps connections fast)
+mcpx --daemon
+
+# 5. Done! Start Claude Code and ask about your data
+```
+
+### What happens after setup
+
+Once configured, you can ask Claude Code naturally:
+
+- "Show me users created today from Supabase"
+- "Search BetterStack logs for errors in the last hour"
+- "What tables are in my database?"
+
+Claude Code will:
+1. Recognize the request matches an MCP server
+2. Invoke the `/mcpx` skill automatically
+3. Discover available tools via `mcpx --daemon-tools <server>`
+4. Execute queries via `mcpx --query <server> <tool> '{...}'`
+5. Return human-readable results
+
+### How it works
+
+```
+You: "Show me recent errors from BetterStack"
+        ↓
+Claude Code recognizes "BetterStack" → invokes /mcpx skill
+        ↓
+Skill runs: mcpx --servers (finds betterstack)
+        ↓
+Skill runs: mcpx --daemon-tools betterstack (finds search_logs tool)
+        ↓
+Skill spawns subagent: mcpx --query betterstack search_logs '{"query": "level:error", "range": "1h"}'
+        ↓
+Claude Code: "Found 3 errors in the last hour: [summary]"
+```
+
+### Manual invocation
+
+You can also invoke the skill directly:
+
+```
+/mcpx
+```
+
+This is useful when Claude doesn't auto-detect your intent.
+
+### Skill location
+
+The skill is installed at `~/.claude/skills/mcpx.md`. You can customize it or inspect its contents:
+
+```bash
+cat ~/.claude/skills/mcpx.md
 ```
 
 ## License
