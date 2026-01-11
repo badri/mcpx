@@ -18,6 +18,7 @@ const (
 	ErrMCPError         = "MCP_ERROR"
 	ErrParseError       = "PARSE_ERROR"
 	ErrNotFound         = "NOT_FOUND"
+	ErrExists           = "EXISTS"
 	ErrMissingDep       = "MISSING_DEP"
 	ErrInvalidJSON      = "INVALID_JSON"
 	ErrDaemonError      = "DAEMON_ERROR"

@@ -122,6 +122,20 @@ func LoadConfig() (*Config, error) {
 	return &config, nil
 }
 
+// SaveConfig saves server configurations
+func SaveConfig(config *Config) error {
+	if err := os.MkdirAll(ConfigDir, 0755); err != nil {
+		return err
+	}
+
+	data, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(ConfigFile, data, 0644)
+}
+
 // LoadSessions loads persisted session IDs
 func LoadSessions() (map[string]string, error) {
 	if _, err := os.Stat(SessionFile); os.IsNotExist(err) {

@@ -5,7 +5,20 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 )
+
+// headerFlags allows multiple --header flags
+type headerFlags []string
+
+func (h *headerFlags) String() string {
+	return strings.Join(*h, ", ")
+}
+
+func (h *headerFlags) Set(value string) error {
+	*h = append(*h, value)
+	return nil
+}
 
 var (
 	// Basic commands
@@ -18,6 +31,11 @@ var (
 	flagClearTokens   = flag.Bool("clear-tokens", false, "Clear stored OAuth tokens")
 	flagAuth          = flag.String("auth", "", "OAuth login for a server")
 
+	// Server management
+	flagAdd    = flag.Bool("add", false, "Add a server: --add <name> <url>")
+	flagHeader headerFlags
+	flagRemove = flag.String("remove", "", "Remove a server: --remove <name>")
+
 	// Daemon mode
 	flagDaemon           = flag.Bool("daemon", false, "Start daemon in background")
 	flagDaemonForeground = flag.Bool("daemon-foreground", false, "Run daemon in foreground (internal)")
@@ -26,6 +44,10 @@ var (
 	flagDaemonTools      = flag.String("daemon-tools", "", "List tools via daemon")
 	flagQuery            = flag.Bool("query", false, "Fast query via daemon: --query <server> <tool> '<json>'")
 )
+
+func init() {
+	flag.Var(&flagHeader, "header", "Header for --add: --header 'Authorization: Bearer TOKEN'")
+}
 
 func main() {
 	flag.Usage = func() {
@@ -38,6 +60,11 @@ Usage:
   mcpx --auth <server>                    # OAuth login for a server
   mcpx --init                             # Create config file
   mcpx --init-skill                       # Install Claude Code skill
+
+Server management:
+  mcpx --add <name> <url>                 # Add a server
+  mcpx --add --header 'Authorization: Bearer TOKEN' <name> <url>
+  mcpx --remove <name>                    # Remove a server
 
 Daemon mode (fast queries):
   mcpx --daemon                           # Start daemon in background
@@ -87,6 +114,16 @@ Flags:
 
 	case *flagServers:
 		listServers()
+
+	case *flagAdd:
+		args := flag.Args()
+		if len(args) < 2 {
+			errExit(ErrInvalidArgs, "Usage: --add <name> <url>")
+		}
+		addServer(args[0], args[1], flagHeader)
+
+	case *flagRemove != "":
+		removeServer(*flagRemove)
 
 	case *flagTools != "":
 		listTools(*flagTools)
@@ -145,6 +182,65 @@ func listServers() {
 	}
 
 	ok(map[string]any{"servers": servers})
+}
+
+// addServer adds a server to the configuration
+func addServer(name, url string, headers headerFlags) {
+	config, err := LoadConfig()
+	if err != nil {
+		errExit(ErrMCPError, fmt.Sprintf("Failed to load config: %v", err))
+	}
+
+	if _, exists := config.Servers[name]; exists {
+		errExit(ErrExists, fmt.Sprintf("Server '%s' already exists. Remove it first with --remove.", name))
+	}
+
+	serverConfig := ServerConfig{URL: url}
+	if len(headers) > 0 {
+		serverConfig.Headers = make(map[string]string)
+		for _, h := range headers {
+			if !strings.Contains(h, ":") {
+				errExit(ErrInvalidArgs, fmt.Sprintf("Invalid header format: '%s'. Use 'Name: Value'", h))
+			}
+			parts := strings.SplitN(h, ":", 2)
+			serverConfig.Headers[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
+		}
+	}
+
+	config.Servers[name] = serverConfig
+	if err := SaveConfig(config); err != nil {
+		errExit(ErrMCPError, fmt.Sprintf("Failed to save config: %v", err))
+	}
+
+	ok(map[string]any{
+		"message": fmt.Sprintf("Server '%s' added", name),
+		"server": ServerInfo{
+			Name:    name,
+			URL:     url,
+			HasAuth: len(serverConfig.Headers) > 0,
+		},
+	})
+}
+
+// removeServer removes a server from the configuration
+func removeServer(name string) {
+	config, err := LoadConfig()
+	if err != nil {
+		errExit(ErrMCPError, fmt.Sprintf("Failed to load config: %v", err))
+	}
+
+	if _, exists := config.Servers[name]; !exists {
+		errExit(ErrNotFound, fmt.Sprintf("Server '%s' not found.", name))
+	}
+
+	delete(config.Servers, name)
+	if err := SaveConfig(config); err != nil {
+		errExit(ErrMCPError, fmt.Sprintf("Failed to save config: %v", err))
+	}
+
+	ok(map[string]any{
+		"message": fmt.Sprintf("Server '%s' removed", name),
+	})
 }
 
 // Placeholder implementations - will be filled in subsequent phases
