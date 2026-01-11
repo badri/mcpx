@@ -26,7 +26,7 @@ var (
 	flagTools         = flag.String("tools", "", "List tools on a server")
 	flagCall          = flag.Bool("call", false, "Call a tool: --call <server> <tool> '<json>'")
 	flagInit          = flag.Bool("init", false, "Initialize config file")
-	flagInitSkill     = flag.Bool("init-skill", false, "Install mcpx skill for Claude Code")
+	flagInitSkill     = flag.Bool("init-skill", false, "Install Claude Code skill to ~/.claude/skills/")
 	flagClearSessions = flag.Bool("clear-sessions", false, "Clear cached sessions")
 	flagClearTokens   = flag.Bool("clear-tokens", false, "Clear stored OAuth tokens")
 	flagAuth          = flag.String("auth", "", "OAuth login for a server")
@@ -95,10 +95,11 @@ Flags:
 		}
 
 	case *flagInitSkill:
-		if err := InitSkill(); err != nil {
+		path, err := InitSkill()
+		if err != nil {
 			errExit(ErrMCPError, fmt.Sprintf("Failed to install skill: %v", err))
 		}
-		fmt.Printf("Installed Claude Code skill: %s\n", ClaudeSkillFile)
+		fmt.Printf("Installed Claude Code skill: %s\n", path)
 
 	case *flagClearSessions:
 		if err := ClearSessions(); err != nil {

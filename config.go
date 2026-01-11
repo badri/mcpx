@@ -17,6 +17,10 @@ var (
 	SocketPath  = filepath.Join(ConfigDir, "daemon.sock")
 	PIDFile     = filepath.Join(ConfigDir, "daemon.pid")
 	LogFile     = filepath.Join(ConfigDir, "daemon.log")
+
+	// Claude Code skill paths
+	SkillDir  = filepath.Join(os.Getenv("HOME"), ".claude", "skills")
+	SkillFile = filepath.Join(SkillDir, "mcpx.md")
 )
 
 const (
@@ -296,13 +300,7 @@ func ClearTokens() error {
 	return os.Remove(TokensFile)
 }
 
-// Claude Code skill paths
-var (
-	ClaudeSkillsDir  = filepath.Join(os.Getenv("HOME"), ".claude", "skills")
-	ClaudeSkillFile  = filepath.Join(ClaudeSkillsDir, "mcpx.md")
-)
-
-// mcpxSkillContent is the Claude Code skill for MCP server access
+// mcpxSkillContent is the embedded Claude Code skill file
 const mcpxSkillContent = `---
 name: mcpx
 description: Query MCP servers (databases, logs, APIs). Matches requests about Supabase, BetterStack, database queries, log searches, or any configured MCP server.
@@ -361,13 +359,15 @@ User: "Check my Supabase for users created today"
 Use ` + "`haiku`" + ` for simple queries to reduce cost. Use ` + "`sonnet`" + ` for complex multi-step operations.
 `
 
-// InitSkill installs the mcpx skill for Claude Code
-func InitSkill() error {
-	// Create skills directory
-	if err := os.MkdirAll(ClaudeSkillsDir, 0755); err != nil {
-		return err
+// InitSkill installs the mcpx skill file for Claude Code
+func InitSkill() (string, error) {
+	if err := os.MkdirAll(SkillDir, 0755); err != nil {
+		return "", err
 	}
 
-	// Write skill file
-	return os.WriteFile(ClaudeSkillFile, []byte(mcpxSkillContent), 0644)
+	if err := os.WriteFile(SkillFile, []byte(mcpxSkillContent), 0644); err != nil {
+		return "", err
+	}
+
+	return SkillFile, nil
 }
