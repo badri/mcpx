@@ -155,12 +155,16 @@ func (c *MCPClient) Request(method string, params any) (*MCPResponse, string, er
 
 // Initialize establishes an MCP session
 func (c *MCPClient) Initialize() error {
-	// Check if we have a cached session
-	sessions, err := LoadSessions()
-	if err == nil {
-		if sessionID, ok := sessions[c.serverName]; ok {
-			c.sessionID = sessionID
-			return nil
+	// For session-based servers (Streamable HTTP), skip session cache lookup.
+	// The session is tied to the TCP connection, so cached session IDs are invalid.
+	if !c.config.SessionBased {
+		// Check if we have a cached session
+		sessions, err := LoadSessions()
+		if err == nil {
+			if sessionID, ok := sessions[c.serverName]; ok {
+				c.sessionID = sessionID
+				return nil
+			}
 		}
 	}
 
@@ -182,14 +186,17 @@ func (c *MCPClient) Initialize() error {
 		return fmt.Errorf("initialize failed: %s", resp.Error.Message)
 	}
 
-	// Save session ID if we got one
+	// Save session ID if we got one (skip for session-based servers)
 	if sessionID != "" {
 		c.sessionID = sessionID
-		if sessions == nil {
-			sessions = make(map[string]string)
+		if !c.config.SessionBased {
+			sessions, _ := LoadSessions()
+			if sessions == nil {
+				sessions = make(map[string]string)
+			}
+			sessions[c.serverName] = sessionID
+			SaveSessions(sessions)
 		}
-		sessions[c.serverName] = sessionID
-		SaveSessions(sessions)
 	}
 
 	return nil
