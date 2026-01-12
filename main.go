@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 )
 
@@ -43,6 +44,10 @@ var (
 	flagDaemonStatus     = flag.Bool("daemon-status", false, "Check daemon status")
 	flagDaemonTools      = flag.String("daemon-tools", "", "List tools via daemon")
 	flagQuery            = flag.Bool("query", false, "Fast query via daemon: --query <server> <tool> '<json>'")
+
+	// Process management
+	flagStatus = flag.Bool("status", false, "Show running processes")
+	flagLogs   = flag.String("logs", "", "Tail logs for a managed server: --logs <server>")
 )
 
 func init() {
@@ -67,12 +72,17 @@ Server management:
   mcpx --remove <name>                    # Remove a server
 
 Daemon mode (fast queries):
-  mcpx --daemon                           # Start daemon in background
+  mcpx --daemon                           # Start daemon + local servers
   mcpx --query <server> <tool> '<json>'   # Fast query via daemon
   mcpx --daemon-tools <server>            # List tools via daemon
-  mcpx --daemon-stop                      # Stop daemon
+  mcpx --daemon-stop                      # Stop daemon + local servers
+
+Process management:
+  mcpx --status                           # Show running processes
+  mcpx --logs <server>                    # Tail logs for a managed server
 
 Config: ~/.mcpx/servers.json
+Logs: ~/.mcpx/logs/<server>.log
 
 Flags:
 `)
@@ -161,6 +171,12 @@ Flags:
 		}
 		daemonQuery(args[0], args[1], args[2])
 
+	case *flagStatus:
+		showStatus()
+
+	case *flagLogs != "":
+		tailLogs(*flagLogs)
+
 	default:
 		flag.Usage()
 	}
@@ -179,6 +195,7 @@ func listServers() {
 			Name:    name,
 			URL:     cfg.URL,
 			HasAuth: len(cfg.Headers) > 0,
+			IsLocal: cfg.Local != nil,
 		})
 	}
 
@@ -390,5 +407,45 @@ func daemonQuery(serverName, toolName, argsJSON string) {
 	fmt.Println(string(out))
 	if !resp.OK {
 		os.Exit(1)
+	}
+}
+
+func showStatus() {
+	resp, err := DaemonSend(DaemonCommand{
+		Action: "status",
+	})
+	if err != nil {
+		errExit(ErrDaemonError, err.Error())
+	}
+
+	out, _ := json.MarshalIndent(resp, "", "  ")
+	fmt.Println(string(out))
+	if !resp.OK {
+		os.Exit(1)
+	}
+}
+
+func tailLogs(serverName string) {
+	logPath := GetLogPath(serverName)
+
+	// Check if log file exists
+	if _, err := os.Stat(logPath); os.IsNotExist(err) {
+		errExit(ErrNotFound, fmt.Sprintf("No logs found for server '%s'. Log path: %s", serverName, logPath))
+	}
+
+	// Use tail -f to follow the log file
+	cmd := exec.Command("tail", "-f", "-n", "100", logPath)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	fmt.Printf("Tailing logs for '%s' (Ctrl+C to stop)\n", serverName)
+	fmt.Printf("Log file: %s\n\n", logPath)
+
+	if err := cmd.Run(); err != nil {
+		// Ignore interrupt errors from Ctrl+C
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			os.Exit(exitErr.ExitCode())
+		}
+		errExit(ErrMCPError, err.Error())
 	}
 }

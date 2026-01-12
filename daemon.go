@@ -28,12 +28,13 @@ type CachedTools struct {
 
 // MCPDaemon is the daemon server
 type MCPDaemon struct {
-	config     *Config
-	clients    map[string]*MCPClient
-	toolsCache map[string]*CachedTools
-	mu         sync.RWMutex
-	running    bool
-	listener   net.Listener
+	config       *Config
+	clients      map[string]*MCPClient
+	toolsCache   map[string]*CachedTools
+	localManager *LocalManager
+	mu           sync.RWMutex
+	running      bool
+	listener     net.Listener
 }
 
 // NewMCPDaemon creates a new daemon instance
@@ -44,10 +45,11 @@ func NewMCPDaemon() (*MCPDaemon, error) {
 	}
 
 	return &MCPDaemon{
-		config:     config,
-		clients:    make(map[string]*MCPClient),
-		toolsCache: make(map[string]*CachedTools),
-		running:    true,
+		config:       config,
+		clients:      make(map[string]*MCPClient),
+		toolsCache:   make(map[string]*CachedTools),
+		localManager: NewLocalManager(),
+		running:      true,
 	}, nil
 }
 
@@ -168,6 +170,34 @@ func (d *MCPDaemon) closeAllClients() {
 	d.toolsCache = make(map[string]*CachedTools)
 }
 
+// startLocalServers starts all servers with local configuration
+func (d *MCPDaemon) startLocalServers() {
+	d.mu.RLock()
+	servers := d.config.Servers
+	d.mu.RUnlock()
+
+	for name, cfg := range servers {
+		if cfg.Local != nil {
+			fmt.Fprintf(os.Stderr, "[%s] Starting local server '%s'...\n",
+				time.Now().Format("15:04:05"), name)
+			if err := d.localManager.StartServer(name, cfg); err != nil {
+				fmt.Fprintf(os.Stderr, "[%s] Failed to start '%s': %v\n",
+					time.Now().Format("15:04:05"), name, err)
+			}
+		}
+	}
+}
+
+// stopLocalServers stops all locally-managed servers
+func (d *MCPDaemon) stopLocalServers() {
+	d.localManager.StopAll()
+}
+
+// getProcessStatus returns status of all local processes
+func (d *MCPDaemon) getProcessStatus() []ProcessInfo {
+	return d.localManager.GetStatus()
+}
+
 // handleCommand handles a daemon command
 func (d *MCPDaemon) handleCommand(cmd DaemonCommand) Response {
 	switch cmd.Action {
@@ -219,8 +249,28 @@ func (d *MCPDaemon) handleCommand(cmd DaemonCommand) Response {
 			"result": result,
 		})
 
+	case "status":
+		// Return status of daemon and local processes
+		processes := d.getProcessStatus()
+		d.mu.RLock()
+		serverCount := len(d.config.Servers)
+		localCount := 0
+		for _, cfg := range d.config.Servers {
+			if cfg.Local != nil {
+				localCount++
+			}
+		}
+		d.mu.RUnlock()
+		return okResponse(map[string]any{
+			"daemon":     "running",
+			"servers":    serverCount,
+			"local":      localCount,
+			"processes":  processes,
+		})
+
 	case "shutdown":
 		d.running = false
+		d.stopLocalServers()
 		return okResponse("shutting down")
 
 	default:
@@ -306,6 +356,9 @@ func (d *MCPDaemon) Run() error {
 	fmt.Printf("MCP daemon started (pid %d)\n", os.Getpid())
 	fmt.Printf("Socket: %s\n", SocketPath)
 
+	// Start local servers
+	d.startLocalServers()
+
 	// Accept connections
 	for d.running {
 		conn, err := listener.Accept()
@@ -321,6 +374,7 @@ func (d *MCPDaemon) Run() error {
 	}
 
 	// Cleanup
+	d.stopLocalServers()
 	d.closeAllClients()
 	listener.Close()
 	os.Remove(SocketPath)

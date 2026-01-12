@@ -17,6 +17,7 @@ var (
 	SocketPath  = filepath.Join(ConfigDir, "daemon.sock")
 	PIDFile     = filepath.Join(ConfigDir, "daemon.pid")
 	LogFile     = filepath.Join(ConfigDir, "daemon.log")
+	LogsDir     = filepath.Join(ConfigDir, "logs") // Per-server log directory
 
 	// Claude Code skill paths
 	SkillDir  = filepath.Join(os.Getenv("HOME"), ".claude", "skills")
@@ -27,6 +28,14 @@ const (
 	ToolsCacheTTL = 300 * time.Second // 5 minutes
 )
 
+// LocalConfig holds configuration for locally-spawned MCP servers
+type LocalConfig struct {
+	Command string   `json:"command"`          // Command to run (e.g., "npx", "python")
+	Args    []string `json:"args,omitempty"`   // Arguments (e.g., ["@playwright/mcp@latest", "--port", "8931"])
+	Port    int      `json:"port,omitempty"`   // Port to connect to (derived from args or explicit)
+	Env     []string `json:"env,omitempty"`    // Environment variables
+}
+
 // ServerConfig represents a configured MCP server
 type ServerConfig struct {
 	URL          string            `json:"url"`
@@ -34,6 +43,7 @@ type ServerConfig struct {
 	OAuth        *OAuthConfig      `json:"oauth,omitempty"`
 	Scope        string            `json:"scope,omitempty"`
 	SessionBased bool              `json:"session_based,omitempty"` // For Streamable HTTP servers where session is tied to TCP connection
+	Local        *LocalConfig      `json:"local,omitempty"`         // If set, mcpx manages the server process
 }
 
 // OAuthConfig holds OAuth configuration for a server
@@ -102,6 +112,7 @@ type ServerInfo struct {
 	Name    string `json:"name"`
 	URL     string `json:"url"`
 	HasAuth bool   `json:"has_auth,omitempty"`
+	IsLocal bool   `json:"is_local,omitempty"` // True if server has local config
 }
 
 // LoadConfig loads server configurations
@@ -272,6 +283,14 @@ func InitConfig() error {
 			"playwright-example": {
 				URL:          "http://localhost:3000/mcp",
 				SessionBased: true, // For Streamable HTTP servers (e.g., Playwright MCP) where session is tied to TCP connection
+			},
+			"playwright-local-example": {
+				URL:          "http://localhost:8931/mcp",
+				SessionBased: true,
+				Local: &LocalConfig{
+					Command: "npx",
+					Args:    []string{"@playwright/mcp@latest", "--port", "8931"},
+				},
 			},
 		},
 	}
