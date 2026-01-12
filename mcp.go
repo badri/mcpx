@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -19,8 +21,11 @@ var defaultHeaders = map[string]string{
 
 // HTTPClient wraps http.Client with MCP-specific functionality
 type HTTPClient struct {
-	client  *http.Client
-	timeout time.Duration
+	client     *http.Client
+	transport  *http.Transport
+	timeout    time.Duration
+	persistent bool
+	mu         sync.Mutex
 }
 
 // NewHTTPClient creates a new HTTP client
@@ -28,6 +33,44 @@ func NewHTTPClient(timeout time.Duration) *HTTPClient {
 	return &HTTPClient{
 		client:  &http.Client{Timeout: timeout},
 		timeout: timeout,
+	}
+}
+
+// NewPersistentHTTPClient creates an HTTP client that maintains persistent connections
+// for session-based MCP servers (like Playwright MCP using Streamable HTTP).
+func NewPersistentHTTPClient(timeout time.Duration) *HTTPClient {
+	// Create a transport that keeps connections alive
+	transport := &http.Transport{
+		DialContext: (&net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+		MaxIdleConns:          1,
+		MaxIdleConnsPerHost:   1,
+		MaxConnsPerHost:       1, // Force single connection for session affinity
+		IdleConnTimeout:       0, // Never timeout idle connections
+		DisableKeepAlives:     false,
+		ForceAttemptHTTP2:     false, // Use HTTP/1.1 for simpler connection management
+		ResponseHeaderTimeout: timeout,
+	}
+
+	return &HTTPClient{
+		client: &http.Client{
+			Transport: transport,
+			Timeout:   0, // No overall timeout; use transport-level timeouts
+		},
+		transport:  transport,
+		timeout:    timeout,
+		persistent: true,
+	}
+}
+
+// Close closes idle connections (for persistent clients)
+func (h *HTTPClient) Close() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.transport != nil {
+		h.transport.CloseIdleConnections()
 	}
 }
 
@@ -56,20 +99,47 @@ func parseSSEResponse(text string) (*MCPResponse, error) {
 
 // MCPClient handles MCP protocol communication
 type MCPClient struct {
-	httpClient *HTTPClient
-	config     ServerConfig
-	serverName string
-	sessionID  string
-	oauthToken string
+	httpClient  *HTTPClient
+	config      ServerConfig
+	serverName  string
+	sessionID   string
+	oauthToken  string
+	persistent  bool
+	initialized bool
+	mu          sync.Mutex
 }
 
 // NewMCPClient creates a new MCP client for a server
 func NewMCPClient(serverName string, config ServerConfig) *MCPClient {
+	var httpClient *HTTPClient
+	if config.SessionBased {
+		httpClient = NewPersistentHTTPClient(30 * time.Second)
+	} else {
+		httpClient = NewHTTPClient(30 * time.Second)
+	}
+
 	return &MCPClient{
-		httpClient: NewHTTPClient(30 * time.Second),
+		httpClient: httpClient,
 		config:     config,
 		serverName: serverName,
+		persistent: config.SessionBased,
 	}
+}
+
+// Close closes the underlying HTTP client connections
+func (c *MCPClient) Close() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.httpClient != nil {
+		c.httpClient.Close()
+	}
+	c.initialized = false
+	c.sessionID = ""
+}
+
+// IsPersistent returns whether this client uses persistent connections
+func (c *MCPClient) IsPersistent() bool {
+	return c.persistent
 }
 
 // SetOAuthToken sets the OAuth token for requests

@@ -128,17 +128,44 @@ func (d *MCPDaemon) reloadConfig() error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
+	oldConfig := d.config
 	d.config = config
 
-	// Clear caches for servers that were removed
-	for name := range d.clients {
-		if _, ok := d.config.Servers[name]; !ok {
+	// Handle client updates based on config changes
+	for name, client := range d.clients {
+		newServerConfig, exists := d.config.Servers[name]
+		if !exists {
+			// Server was removed - close and delete client
+			client.Close()
+			delete(d.clients, name)
+			delete(d.toolsCache, name)
+			continue
+		}
+
+		// Check if server config changed significantly (URL or persistent mode)
+		oldServerConfig := oldConfig.Servers[name]
+		if oldServerConfig.URL != newServerConfig.URL ||
+			oldServerConfig.SessionBased != newServerConfig.SessionBased {
+			// Config changed - close old client, will be recreated on next request
+			client.Close()
 			delete(d.clients, name)
 			delete(d.toolsCache, name)
 		}
 	}
 
 	return nil
+}
+
+// closeAllClients closes all MCP clients (for shutdown)
+func (d *MCPDaemon) closeAllClients() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	for name, client := range d.clients {
+		client.Close()
+		delete(d.clients, name)
+	}
+	d.toolsCache = make(map[string]*CachedTools)
 }
 
 // handleCommand handles a daemon command
@@ -294,6 +321,7 @@ func (d *MCPDaemon) Run() error {
 	}
 
 	// Cleanup
+	d.closeAllClients()
 	listener.Close()
 	os.Remove(SocketPath)
 	os.Remove(PIDFile)
